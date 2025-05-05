@@ -213,4 +213,4 @@ if __name__ == "__main__":
     now_pdt = datetime.now()
     print("Current PDT time:", now_pdt)
     #get_forecast(45.49,-122.7,2500,datetime.now(timezone.utc))
-    get_forecast(45.49,-122.7,150,now_pdt,ZoneInfo("America/Los_Angeles"))
+    get_forecast(45.49,-122.7,250,now_pdt,ZoneInfo("America/Los_Angeles"))

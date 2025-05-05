@@ -65,7 +65,6 @@ class Balloon:
                        rho: float,
                        T: float,
                        v_rel_norm: float) -> float:
-        #  Reynolds number
         Re = self.get_reynolds(rho, T, v_rel_norm)
 
         # Piecewise Morsi–Alexander fits
@@ -138,14 +137,6 @@ class Payload:
                        rho: float,
                        T: float,
                        v_rel_norm: float) -> float:
-        """
-        Piecewise drag‐coefficient for a smooth circular
-        cylinder in cross‐flow (axis ⟂ flow).
-
-        Re < 1e3 : transitional fit, Cd ~ 1.2 + 10 / sqrt(Re)
-        1e3 ≤ Re < 4e5 : fully turbulent wake, Cd ≈ 1.0
-        Re ≥ 4e5       : post‐critical drag crisis, Cd ≈ 0.5
-        """
         Re = self.get_reynolds(rho, T, v_rel_norm)
 
         if Re < 1.0:
@@ -199,9 +190,6 @@ class System:
                             balloon=self.balloon,
                             payload=self.payload,
                             tether=self.tether)
-
-
-
 
 
 def get_statedot(state: np.ndarray, t: datetime, t0: datetime, balloon: Balloon, payload: Payload, tether: Tether) -> np.ndarray:
