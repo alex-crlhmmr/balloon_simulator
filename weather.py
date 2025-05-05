@@ -65,9 +65,9 @@ def get_column(lat: float, lon: float, when: datetime):
     w10 = dy * (1 - dx)
     w11 = dy * dx
 
-    print(f"Bilinear box  : [{lat_lo:.2f}, {lat_hi:.2f}]° x "
-          f"[{lon_lo:.2f}, {lon_hi:.2f}]°  "
-          f"weights (w00…w11)={w00:.2f},{w01:.2f},{w10:.2f},{w11:.2f}")
+    # print(f"Bilinear box  : [{lat_lo:.2f}, {lat_hi:.2f}]° x "
+    #       f"[{lon_lo:.2f}, {lon_hi:.2f}]°  "
+    #       f"weights (w00…w11)={w00:.2f},{w01:.2f},{w10:.2f},{w11:.2f}")
 
     def collapse(var: str):
         v = ds_4[var].values
@@ -164,14 +164,14 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
     q_at = interp_at(z, q, alt)
     rho_at = rho_from_ptq(p_at, T_at, q_at)
     
-    print(f"GFS cycle      : {latest_cycle:%Y-%m-%d %H:%MZ}")
-    print(f"Forecast valid : {valid_dt:%Y-%m-%d %H:%MZ}")
-    print(f"Wind 10 m AGL  : u10={u10:.2f} m/s  v10={v10:.2f} m/s")
-    print(f"Wind @ {alt/1000:.3f} km : "
-          f"u={u_at:.2f} m/s  v={v_at:.2f} m/s  w={w_at:.2f} m/s")
-    print(f"Temperature    : {T_at:.2f} K ({T_at-273.15:.2f} °C)")
-    print(f"Pressure       : {p_at:.3f} hPa")
-    print(f"Density        : {rho_at:.4f} kg m⁻³")
+    # print(f"GFS cycle      : {latest_cycle:%Y-%m-%d %H:%MZ}")
+    # print(f"Forecast valid : {valid_dt:%Y-%m-%d %H:%MZ}")
+    # print(f"Wind 10 m AGL  : u10={u10:.2f} m/s  v10={v10:.2f} m/s")
+    # print(f"Wind @ {alt/1000:.3f} km : "
+    #       f"u={u_at:.2f} m/s  v={v_at:.2f} m/s  w={w_at:.2f} m/s")
+    # print(f"Temperature    : {T_at:.2f} K ({T_at-273.15:.2f} °C)")
+    # print(f"Pressure       : {p_at:.3f} hPa")
+    # print(f"Density        : {rho_at:.4f} kg m⁻³")
     
     return {
         "u": u_at,
