@@ -57,18 +57,19 @@ class Balloon:
                 f"gas_mass={self.gas.mass} kg, "
                 f"R_spec={self.gas.R_specific:.4f} J/(kg·K)>")
     
-    def reynolds(self, 
-                 rho: float, 
-                 T: float, 
-                 v_rel_norm: float) -> float:
-        return rho*v_rel_norm*(2*self.radius)/sutherland_viscosity(T)
+    def get_reynolds(self, 
+                     rho: float, 
+                     T: float, 
+                     v_rel_norm: float) -> float:
+        mu = sutherland_viscosity(T)
+        return rho*v_rel_norm*(2*self.radius)/mu
     
-    def drag_coeff(self,
-                   rho: float,
-                   T: float,
-                   v_rel_norm: float) -> float:
+    def get_drag_coeff(self,
+                       rho: float,
+                       T: float,
+                       v_rel_norm: float) -> float:
         #  Reynolds number
-        Re = self.reynolds(rho, T, v_rel_norm)
+        Re = self.get_reynolds(rho, T, v_rel_norm)
 
         # Piecewise Morsi–Alexander fits
         if Re < 0.1:
@@ -97,7 +98,7 @@ class Balloon:
         v_rel_norm = np.linalg.norm(v_rel)
         if v_rel_norm < 1e-12:
             return np.zeros_like(v_rel)
-        C_d = self.drag_coeff(rho, T, v_rel_norm)
+        C_d = self.get_drag_coeff(rho, T, v_rel_norm)
         A = np.pi*self.radius**2
         return -0.5*C_d*rho*A*v_rel_norm*v_rel
     
@@ -120,11 +121,60 @@ class Balloon:
 class Payload:
     def __init__(self, 
                  radius: float, 
-                 lenght: float, 
+                 length: float, 
                  mass: float):
         self.radius = radius
-        self.lenght = lenght
+        self.length = length
         self.mass = mass
+        
+    def get_reynolds(self, 
+                     rho: float, 
+                     T: float, 
+                     v_rel_norm: float) -> float:
+        mu = sutherland_viscosity(T)
+        return rho * v_rel_norm * (2*self.radius) / mu
+    
+    def get_drag_coeff(self,
+                       rho: float,
+                       T: float,
+                       v_rel_norm: float) -> float:
+        """
+        Piecewise drag‐coefficient for a smooth circular
+        cylinder in cross‐flow (axis ⟂ flow).
+
+        Re < 1e3 : transitional fit, Cd ~ 1.2 + 10 / sqrt(Re)
+        1e3 ≤ Re < 4e5 : fully turbulent wake, Cd ≈ 1.0
+        Re ≥ 4e5       : post‐critical drag crisis, Cd ≈ 0.5
+        """
+        Re = self.get_reynolds(rho, T, v_rel_norm)
+
+        if Re < 1.0:
+            # creeping‐flow regime
+            return 4.0 * np.pi / Re
+        elif Re < 1e3:
+            # empirical transitional fit 
+            return 1.2 + 10.0 / np.sqrt(Re)
+        elif Re < 4e5:
+            # subcritical, nearly constant form drag
+            return 1.0
+        else:
+            # after critical‐Re drag crisis
+            return 0.5
+
+    def drag_force(self,
+                   rho: float,
+                   T: float,
+                   v_rel: np.ndarray[float]) -> np.ndarray[float]:
+        v_rel_norm = np.linalg.norm(v_rel)
+        if v_rel_norm < 1e-12:
+            return np.zeros_like(v_rel)
+        C_d = self.get_drag_coeff(rho, T, v_rel_norm)
+        A = 2 * self.radius * self.length 
+        return -0.5*C_d*rho*A*v_rel_norm*v_rel
+    
+    def gravity_force(self) -> np.ndarray[float]:
+        total_mass = self.mass
+        return - total_mass * g * np.array([0.0, 0.0, 1.0])
 
 
 class Tether:
