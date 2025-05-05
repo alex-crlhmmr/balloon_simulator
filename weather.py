@@ -5,27 +5,7 @@ from typing import Dict, Any
 import sys
 import numpy as np
 import xarray as xr
-
-OPENDAP_URL = (
-    "https://thredds.ucar.edu/thredds/dodsC/grib/NCEP/GFS/Global_0p25deg/Best"
-)
-
-ISOBARIC_VARS = [
-    "u-component_of_wind_isobaric",
-    "v-component_of_wind_isobaric",
-    "Vertical_velocity_geometric_isobaric",   # w  (m s‑1)
-    "Temperature_isobaric",
-    "Specific_humidity_isobaric",             # q  (kg kg‑1)
-    "Geopotential_height_isobaric",
-]
-
-SURFACE_VARS = [
-    "u-component_of_wind_height_above_ground",  # 10 m AGL
-    "v-component_of_wind_height_above_ground",
-]
-
-Rd = 287.05  # J kg‑1 K‑1
-
+from constants import OPENDAP_URL, ISOBARIC_VARS, SURFACE_VARS, Rd
 
 def rho_from_ptq(p_hPa: float | np.ndarray,
                  T_K: float | np.ndarray,

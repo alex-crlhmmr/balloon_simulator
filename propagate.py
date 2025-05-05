@@ -1,7 +1,9 @@
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from weather import get_forecast
-from geo_utils import ecef_to_geodetic_newton, enu_vector_to_ecef
+from geo_utils import ecef_to_geodetic_newton, geodetic_to_ecef, enu_vector_to_ecef
 from gas_utils import sutherland_viscosity
+from scipy.integrate import solve_ivp
 import numpy as np
 from typing import Dict, List, Any, Union
 from constants import R_UNIVERSAL, GAS_DATA, g
@@ -244,3 +246,55 @@ def get_statedot(state: np.ndarray, t: datetime, t0: datetime, balloon: Balloon,
 
 if __name__ == '__main__':
     print('Start of Simulation')
+    
+    balloon = Balloon(
+        radius=10.0,            
+        envelope_mass=50.0,     
+        gas="helium",
+        gas_mass=5.0            
+    )
+    
+    payload = Payload(
+        radius=0.5,             
+        length=1.0,             
+        mass=20.0               
+    )
+    
+    
+    tether = Tether(length=100.0)
+    
+    t0 = datetime.now(ZoneInfo("UTC"))
+    system = System(balloon, payload, tether, t0)
+    
+    lat0, lon0, h0 = np.deg2rad(40.0), np.deg2rad(-75.0), 100.0
+    x0_ecef = geodetic_to_ecef(lat0, lon0, h0)
+    
+    x_b0 = x0_ecef
+    x_p0 = geodetic_to_ecef(lat0, lon0, h0 - 100.0)
+    
+    v_b0 = np.zeros(3)
+    v_p0 = np.zeros(3)
+    
+    y0 = np.hstack([x_b0, v_b0, x_p0, v_p0])
+    
+    t_span = (0.0, 3600.0)
+    t_eval = np.linspace(0, 3600, 361)
+    
+    sol = solve_ivp(
+        fun=system, 
+        t_span=t_span, 
+        y0=y0, 
+        method="RK23",      
+        t_eval=t_eval, 
+        rtol=1e-6, 
+        atol=1e-9
+    )
+    
+    x_b, y_b, z_b = sol.y[0], sol.y[1], sol.y[2]
+    
+    u = np.linspace(0, 2*np.pi, 100)
+    v = np.linspace(0, np.pi, 50)
+    U, V = np.meshgrid(u, v)
+    X_s = RE * np.cos(U) * np.sin(V)
+    Y_s = RE * np.sin(U) * np.sin(V)
+    Z_s = RE * np.cos(V)

@@ -1,14 +1,6 @@
 import numpy as np
 from typing import Tuple, Union
-
-# Ellipsoid constants (WGS-84) 
-RE   = 6_378_137.0                        # Equatorial radius [m]
-f    = 1 / 298.257223563                  # Flattening
-eE   = np.sqrt(f * (2 - f))               # First eccentricity ≈ 0.08181919
-eE2  = eE**2                              # Eccentricity²
-RP   = RE * np.sqrt(1 - eE2)              # Polar radius [m]
-ep2  = (RE**2 - RP**2) / RP**2            # Second eccentricity²
-
+from constants import RE, f, eE, eE2, RP, ep2
 
 def geodetic_to_ecef(lat: float,
                      lon: float,
