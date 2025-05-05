@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from weather import get_forecast
-from geo_utils import ecef_to_geodetic_newton
+from geo_utils import ecef_to_geodetic_newton, enu_vector_to_ecef
+from gas_utils import sutherland_viscosity
 import numpy as np
 from typing import Dict, List, Any, Union
 from constants import R_UNIVERSAL, GAS_DATA, g
@@ -28,8 +29,6 @@ class Gas:
         return cls(name=key, molar_mass=M, R_specific=R_spec, mass=mass)
 
 
-
-
 class Balloon:
     def __init__(self,
                  radius: float,
@@ -40,10 +39,8 @@ class Balloon:
         self.envelope_mass = envelope_mass
 
         if isinstance(gas, Gas):
-            # user passed in a fully‐formed Gas (with its .mass)
             self.gas = gas
         elif isinstance(gas, str):
-            # they gave us a name; they *must* supply gas_mass
             if gas_mass is None:
                 raise ValueError("When `gas` is a string you must also pass `gas_mass`")
             self.gas = Gas.from_name(gas, gas_mass)
@@ -91,6 +88,9 @@ class Balloon:
         Cm = 0.5
         return Cm * rho * V
     
+    def get_total_mass(self, rho: float, T: float, P: float) -> float:
+        return self.envelope_mass+self.gas.mass+self.get_added_mass(rho, T, P)
+    
     def drag_force(self,
                    rho: float,
                    T: float,
@@ -113,7 +113,7 @@ class Balloon:
                       rho: float, 
                       T: float, 
                       P: float) -> np.ndarray[float]:
-        total_mass = self.envelope_mass+self.gas.mass+self.get_added_mass(rho, T, P)
+        total_mass = self.get_total_mass(rho, T, P)
         return - total_mass * g * np.array([0.0, 0.0, 1.0])
 
           
@@ -160,6 +160,9 @@ class Payload:
         else:
             # after critical‐Re drag crisis
             return 0.5
+    
+    def get_total_mass(self) -> float:
+        return self.mass
 
     def drag_force(self,
                    rho: float,
@@ -173,49 +176,81 @@ class Payload:
         return -0.5*C_d*rho*A*v_rel_norm*v_rel
     
     def gravity_force(self) -> np.ndarray[float]:
-        total_mass = self.mass
+        total_mass = self.get_total_mass()
         return - total_mass * g * np.array([0.0, 0.0, 1.0])
 
 
 class Tether:
     def __init__(self, 
-                 lenght: float):
-        self.lenght = lenght
+                 length: float):
+        self.length = length
+        
 
 
-
-def sutherland_viscosity(T: float) -> float:
-    """
-    Compute dynamic viscosity mu [Pa·s] of air at temperature T [K]
-    using Sutherland's law.
-    """
-    # Reference conditions
-    mu0 = 1.716e-5   # Pa·s at T0 = 273.15 K
-    T0  = 273.15     # reference temperature [K]
-    S   = 110.4      # Sutherland's constant [K]
-
-    # Sutherland's law
-    return mu0 * (T / T0)**1.5 * (T0 + S) / (T + S)
-
-
-
-
-def get_statedot(state: np.ndarray, t: datetime, t_0: datetime) -> np.ndarray:
-    current_time = t_0 + timedelta(seconds=t)
-    x_b, y_b, z_b = state[0:3]
-    x_p, y_p, z_p = state[6:9]
-    lat_b, lon_b, h_b =  ecef_to_geodetic_newton(x_b,y_b,z_b)
-    lat_p, lon_p, h_p = ecef_to_geodetic_newton(x_p,y_p,z_p)
-    forecast_dict_b = get_forecast(lat_b,lon_b, h_b, current_time)
-    forecast_dict_p = get_forecast(lat_p,lon_p, h_p, current_time)
+class System:
+    def __init__(self, balloon: Balloon, payload: Payload, tether: Tether, t0: datetime):
+        self.balloon = balloon
+        self.payload = payload
+        self.tether = tether
+        self.t0 = t0
     
+    def __call__(self, t, state):
+        return get_statedot(state, t, self.t0,
+                            balloon=self.balloon,
+                            payload=self.payload,
+                            tether=self.tether)
+
+
+
+
+
+def get_statedot(state: np.ndarray, t: datetime, t0: datetime, balloon: Balloon, payload: Payload, tether: Tether) -> np.ndarray:
     
+    current_time = t0 + timedelta(seconds=t)
     
+    x_b, v_b = state[0:3], state[3:6]
+    x_p, v_p = state[6:9], state[9:12]
     
-    statedot: np.ndarray = [] 
-    statedot[0:3] = state[3:6]
-    statedot[6:9] = state[9:12]    
-    pass 
+    lat_b, lon_b, h_b = ecef_to_geodetic_newton(*x_b)
+    lat_p, lon_p, h_p = ecef_to_geodetic_newton(*x_p)
+    
+    f_b = get_forecast(lat_b, lon_b, h_b, current_time)
+    f_p = get_forecast(lat_p, lon_p, h_p, current_time)
+    
+    wind_b = enu_vector_to_ecef(np.array([f_b["u"], f_b["v"], f_b["w"]]), lat_b, lon_b)
+    wind_p = enu_vector_to_ecef(np.array([f_p["u"], f_p["v"], f_p["w"]]), lat_p, lon_p)
+    
+    vrel_b = v_b - wind_b
+    vrel_p = v_p - wind_p
+    
+    Fb = ( balloon.buoyant_force(f_b["rho"], f_b["T"], f_b["p"])
+         + balloon.gravity_force(f_b["rho"], f_b["T"], f_b["p"])
+         + balloon.drag_force(f_b["rho"], f_b["T"], vrel_b))
+    Fp = ( payload.drag_force(f_p["rho"], f_p["T"], vrel_p)
+         + payload.gravity_force() )
+    
+    mb = balloon.get_total_mass(f_b["rho"], f_b["T"], f_b["p"])
+    mp = payload.get_total_mass()
+    
+    d_vec = x_p - x_b
+    L = tether.length
+    t_hat = d_vec / L
+    dv2 = np.dot(v_p - v_b, v_p - v_b)
+    
+    num = dv2 + np.dot(d_vec, (Fp/mp - Fb/mb))
+    den = L * (1.0/mp + 1.0/mb)
+    Tmag = num / den
+    
+    a_b = (Fb +  Tmag * t_hat) / mb
+    a_p = (Fp -  Tmag * t_hat) / mp
+    
+    statedot = np.zeros_like(state)
+    statedot[0:3] = v_b
+    statedot[3:6] = a_b
+    statedot[6:9] = v_p
+    statedot[9:12] = a_p
+     
+    return statedot 
 
 
 

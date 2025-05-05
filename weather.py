@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-"""
-weather.py  -  GFS-0.25° column sampler via OPeNDAP
--------------------------------------------------------
-
-Download the GFS 0.25 ° “Best” aggregation from UCAR THREDDS, extract a single
-(lat, lon, time) column on isobaric levels, and bilinearly interpolate wind,
-temperature, pressure, humidity and vertical velocity to an arbitrary
-geometric altitude. Also prints 10 m AGL winds and moist-air density.
-
-Usage
------
-    python weather.py
-
-"""
-
 from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -116,7 +100,7 @@ def get_column(lat: float, lon: float, when: datetime):
 
     z = collapse("Geopotential_height_isobaric")          # m
     u = collapse("u-component_of_wind_isobaric")          # m s‑1
-    v_ = collapse("v-component_of_wind_isobaric")         # m s‑1
+    v = collapse("v-component_of_wind_isobaric")         # m s‑1
     w = collapse("Vertical_velocity_geometric_isobaric")  # m s‑1
     T = collapse("Temperature_isobaric")                  # K
     q = collapse("Specific_humidity_isobaric")            # kg/kg
@@ -143,10 +127,10 @@ def get_column(lat: float, lon: float, when: datetime):
         p /= 100.0
 
     if z[0] > z[-1]:
-        z, u, v_, w, T, q, p = (arr[::-1] for arr in (z, u, v_, w, T, q, p))
+        z, u, v, w, T, q, p = (arr[::-1] for arr in (z, u, v, w, T, q, p))
 
     valid_dt = np.datetime64(ds_4.time.values).astype("datetime64[ms]").astype(datetime)
-    return z, p, u, v_, w, T, q, u10, v10, valid_dt
+    return z, p, u, v, w, T, q, u10, v10, valid_dt
 
 
 def interp_at(z: np.ndarray, prof: np.ndarray, alt_m: float) -> float:
