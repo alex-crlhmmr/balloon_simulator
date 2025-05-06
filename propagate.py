@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import time
 import sys
+import json
+import os
 
 
 @dataclass
@@ -111,8 +113,12 @@ class Balloon:
         else:
             return 0.44
         
+
     def get_volume(self, T: float, P: float) -> float:
-        return self.gas.mass * self.gas.R_specific * T / P
+        V_ideal = self.gas.mass * self.gas.R_specific * T / P
+        V_max = (4/3) * np.pi * self.radius**3  
+        # print(f"V_ideal={V_ideal:.4f} m³, V_max={V_max:.4f} m³")
+        return min(V_ideal, V_max)
     
     def get_added_mass(self, rho: float, T: float, P: float) -> float:
         V = self.get_volume(T, P)
@@ -234,43 +240,6 @@ class System:
         return get_statedot(state, t, self.t0, balloon=self.balloon, payload=self.payload,
                             tether=self.tether, forecast_cache=self.forecast_cache)
 
-def get_fake_forecast(h: float) -> Dict[str, float]:
-    """Fake forecast with altitude-dependent atmospheric parameters."""
-    p0 = 1013.25  # Standard sea-level pressure (hPa)
-    T0 = 288.15   # Standard sea-level temperature (K)
-    Rd = 287.05   # Gas constant for dry air (J/(kg·K))
-    lapse_rate = 6.5e-3  # K/m
-    h_tropopause = 11000.0  # Tropopause height (m)
-    T_tropopause = T0 - lapse_rate * h_tropopause  # ~216.65 K
-    h_max = 50000.0  # Maximum altitude (m)
-    
-    if h > h_max:
-        return {
-            "u": -0.26,
-            "v": -3.82,
-            "w": 0.01,
-            "T": 216.65,
-            "p": 0.001,
-            "rho": 0.001,
-        }
-    
-    if h <= h_tropopause:
-        T = T0 - lapse_rate * h
-        p = p0 * (T / T0) ** (-g / (lapse_rate * Rd))
-    else:
-        T = T_tropopause
-        p0_tropopause = p0 * (T_tropopause / T0) ** (-g / (lapse_rate * Rd))
-        p = p0_tropopause * np.exp(-g * (h - h_tropopause) / (Rd * T_tropopause))
-    
-    rho = min(max((p * 100) / (Rd * T), 0.001), 1.225)
-    return {
-        "u": -0.26,
-        "v": -3.82,
-        "w": 0.01,
-        "T": T,
-        "p": p,
-        "rho": rho,
-    }
 
 def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, payload: Payload, tether: Tether, forecast_cache: ForecastCache) -> np.ndarray:
     current_time = t0 + timedelta(seconds=t)
@@ -279,9 +248,14 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     lat_b, lon_b, h_b = ecef_to_geodetic_newton(*x_b)
     lat_p, lon_p, h_p = ecef_to_geodetic_newton(*x_p)
     
-    print(f"Balloon height={h_b}, Payload height={h_p}")
-    # print total simulation time
-    print(f"Simulation time={t:.2f} s")
+    # print(f"Balloon height={h_b}, Payload height={h_p}")
+    
+    
+    # print total simulation time evry 10 minutes
+    # if t % 600 < 1e-6:
+    #     print(f"Balloon height={h_b:.2f} m, Payload height={h_p:.2f} m, Time={t:.2f} s")
+    
+    print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
     
     
     # if t % 600 < 1e-6:
@@ -356,7 +330,7 @@ if __name__ == '__main__':
     print('Start of Simulation')
     lat0, lon0, h0 = np.deg2rad(40.0), np.deg2rad(-75.0), 100.0
     
-    balloon = Balloon(radius=1.5, envelope_mass=1.5, gas="helium", gas_mass=1.745)
+    balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0) # 1.745
     payload = Payload(radius=0.2, length=0.5, mass=3)
     tether = Tether(length=20.0)
     t0 = datetime.now(ZoneInfo("UTC"))
@@ -367,7 +341,7 @@ if __name__ == '__main__':
     x_p0 = x_b0 - tether.length * up
     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
 
-    t_span = (0.0, 0.5*3600.0)
+    t_span = (0.0, 5*3600.0)
     t_eval = np.linspace(0.0, t_span[1], 360)
     
     start_time = time.time()
@@ -378,6 +352,33 @@ if __name__ == '__main__':
     Vbx, Vby, Vbz = sol.y[3], sol.y[4], sol.y[5]
     Xp, Yp, Zp = sol.y[6], sol.y[7], sol.y[8]
     t = sol.t
+    
+
+    traj_log = {
+        "t": sol.t.tolist(),
+        "balloon_ecef":  {
+            "X": Xb.tolist(),
+            "Y": Yb.tolist(),
+            "Z": Zb.tolist()
+        },
+        "payload_ecef":  {
+            "X": Xp.tolist(),
+            "Y": Yp.tolist(),
+            "Z": Zp.tolist()
+        },
+        "origin": {
+            "lat0": float(lat0),
+            "lon0": float(lon0),
+            "h0":   float(h0)
+        },
+        "tether_length": tether.length
+    }
+
+    with open("trajectory.json", "w") as f:
+        json.dump(traj_log, f)
+    print("Trajectory written to trajectory.json")
+
+
 
     # Compute altitudes and ENU velocities
     heights = np.array([ecef_to_geodetic_newton(x, y, z)[2] for x, y, z in zip(Xb, Yb, Zb)])
