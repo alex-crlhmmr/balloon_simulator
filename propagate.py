@@ -279,7 +279,13 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     lat_b, lon_b, h_b = ecef_to_geodetic_newton(*x_b)
     lat_p, lon_p, h_p = ecef_to_geodetic_newton(*x_p)
     
-    print(f"Balloon height={h_b}, Payload height={h_p}")    
+    print(f"Balloon height={h_b}, Payload height={h_p}")
+    # print total simulation time
+    print(f"Simulation time={t:.2f} s")
+    
+    
+    # if t % 600 < 1e-6:
+    #     print(f"Balloon height={h_b:.2f} m, Payload height={h_p:.2f} m, Time={t:.2f} s")    
 
     f_b = forecast_cache.get(lat_b, lon_b, h_b, current_time)
     if f_b is None:
@@ -321,13 +327,13 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     
     # test
     # Spring-damper tether model
-    d_norm = np.linalg.norm(d_vec)
-    k = 1e3  # Stiffness [N/m]
-    c = 10  # Damping [N·s/m]
-    d_dot = np.dot(v_p - v_b, d_vec) / d_norm if d_norm > 1e-6 else 0.0
-    Tmag = k * (d_norm - L) + c * d_dot
-    Tmag = max(Tmag, 0.0)  # Tether cannot push
-    t_hat = d_vec / d_norm if d_norm > 1e-6 else np.zeros(3)
+    # d_norm = np.linalg.norm(d_vec)
+    # k = 1e3  # Stiffness [N/m]
+    # c = 10  # Damping [N·s/m]
+    # d_dot = np.dot(v_p - v_b, d_vec) / d_norm if d_norm > 1e-6 else 0.0
+    # Tmag = k * (d_norm - L) + c * d_dot
+    # Tmag = max(Tmag, 0.0)  # Tether cannot push
+    # t_hat = d_vec / d_norm if d_norm > 1e-6 else np.zeros(3)
     
     # print(f"Tether length={d_norm}, Tmag={Tmag}, t_hat={t_hat}")
     
@@ -348,9 +354,9 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
 
 if __name__ == '__main__':
     print('Start of Simulation')
-    lat0, lon0, h0 = np.deg2rad(40.0), np.deg2rad(-75.0), 40.0
+    lat0, lon0, h0 = np.deg2rad(40.0), np.deg2rad(-75.0), 100.0
     
-    balloon = Balloon(radius=1.5, envelope_mass=1.5, gas="helium", gas_mass=2.5)
+    balloon = Balloon(radius=1.5, envelope_mass=1.5, gas="helium", gas_mass=1.745)
     payload = Payload(radius=0.2, length=0.5, mass=3)
     tether = Tether(length=20.0)
     t0 = datetime.now(ZoneInfo("UTC"))
@@ -362,7 +368,7 @@ if __name__ == '__main__':
     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
 
     t_span = (0.0, 0.5*3600.0)
-    t_eval = np.linspace(0.0, t_span[1], 200)
+    t_eval = np.linspace(0.0, t_span[1], 360)
     
     start_time = time.time()
     sol = solve_ivp(system, t_span, y0, method="Radau", t_eval=t_eval, rtol=1e-4, atol=1e-5, max_step=10.0)
@@ -401,18 +407,40 @@ if __name__ == '__main__':
     plt.savefig('altitude_vs_time.png')
 
     # Plot 2: ENU Velocity Components
-    fig, axs = plt.subplots(4, 1, figsize=(6, 10), sharex=True)
-    comp_v = ['East [m/s]', 'North [m/s]', 'Up [m/s]']
-    for i, data in enumerate(v_enu.T):
-        axs[i].plot(t/60.0, data, color=f'C{i}', lw=1.5)
-        axs[i].set_ylabel(comp_v[i])
-        axs[i].grid(True)
-    axs[3].plot(t/60.0, speed, color='k', lw=1.5)
+    fig, axs = plt.subplots(4, 1, figsize=(8, 12), sharex=True)
+
+    # Debug: Print sample v_enu values to verify
+    print("Sample v_enu (first 5 points, [East, North, Up]):", v_enu[:5])
+
+    # Explicitly plot East, North, Up components
+    axs[0].plot(t/60.0, v_enu[:, 0], color='C0', lw=1.5, label='East')
+    axs[0].set_ylabel('East [m/s]')
+    axs[0].grid(True)
+    axs[0].legend()
+
+    axs[1].plot(t/60.0, v_enu[:, 1], color='C1', lw=1.5, label='North')
+    axs[1].set_ylabel('North [m/s]')
+    axs[1].grid(True)
+    axs[1].legend()
+
+    axs[2].plot(t/60.0, v_enu[:, 2], color='C2', lw=1.5, label='Up')
+    axs[2].set_ylabel('Up [m/s]')
+    axs[2].grid(True)
+    axs[2].legend()
+
+    axs[3].plot(t/60.0, speed, color='k', lw=1.5, label='Speed')
     axs[3].set_ylabel('Speed [m/s]')
     axs[3].set_xlabel('Time [min]')
     axs[3].grid(True)
+    axs[3].legend()
+
+    # Set y-axis limits to improve readability (adjust based on data)
+    for ax in axs[:3]:
+        ax.set_ylim(np.min(v_enu) - 0.5, np.max(v_enu) + 0.5)  # Adjust based on data range
+    axs[3].set_ylim(0, np.max(speed) + 0.5)
+
     fig.suptitle('Balloon Velocity in ENU Coordinates')
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
     plt.savefig('velocity_enu.png')
 
     # Plot 3: Tether Length

@@ -176,7 +176,15 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
 
     # Debug scalar values
     # print(f"u_at: {u_at}, v_at: {v_at}, w_at: {w_at}")
-
+    # print(f"GFS cycle      : {cycle_dt:%Y-%m-%d %H:%MZ}")
+    # print(f"Forecast valid : {valid_dt:%Y-%m-%d %H:%MZ}")
+    # print(f"Wind 10 m AGL  : u10={u10:.2f} m/s  v10={v10:.2f} m/s")
+    # print(f"Wind @ {alt/1000:.3f} km : "
+    #       f"u={u_at:.2f} m/s  v={v_at:.2f} m/s  w={w_at:.2f} m/s")
+    # print(f"Temperature    : {T_at:.2f} K ({T_at-273.15:.2f} °C)")
+    # print(f"Pressure       : {p_at:.3f} hPa")
+    # print(f"Density        : {rho_at:.4f} kg m⁻³")
+    
     return {
         "u": u_at, "v": v_at, "w": w_at,
         "T": T_at, "p": p_at, "q": q_at, "rho": rho_at,
