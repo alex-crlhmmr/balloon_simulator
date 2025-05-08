@@ -185,7 +185,6 @@ def ecef_vector_to_enu(ecef: np.ndarray,
 
 
 
-
 def geocentric_to_geodetic(r: float,
                            lat_gc: float,
                            lon_gc: float,

@@ -10,6 +10,7 @@ from constants import R_UNIVERSAL, GAS_DATA, g, RE
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import multiprocessing as mp
 import time
 import sys
 import json
@@ -114,7 +115,7 @@ class Balloon:
             return 0.44
         
 
-    def get_volume(self, T: float, P: float) -> float:
+    def get_volume(self, T: float, P: float) -> float: 
         V_ideal = self.gas.mass * self.gas.R_specific * T / P
         V_max = (4/3) * np.pi * self.radius**3  
         # print(f"V_ideal={V_ideal:.4f} m³, V_max={V_max:.4f} m³")
@@ -248,28 +249,26 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     lat_b, lon_b, h_b = ecef_to_geodetic_newton(*x_b)
     lat_p, lon_p, h_p = ecef_to_geodetic_newton(*x_p)
     
-    # print(f"Balloon height={h_b}, Payload height={h_p}")
-    
-    
-    # print total simulation time evry 10 minutes
-    # if t % 600 < 1e-6:
-    #     print(f"Balloon height={h_b:.2f} m, Payload height={h_p:.2f} m, Time={t:.2f} s")
+    # Convert to degrees for GFS forecast and cache
+    lat_b_deg = np.rad2deg(lat_b)
+    lon_b_deg = np.rad2deg(lon_b)
+    lat_p_deg = np.rad2deg(lat_p)
+    lon_p_deg = np.rad2deg(lon_p)
     
     print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
     
-    
-    # if t % 600 < 1e-6:
-    #     print(f"Balloon height={h_b:.2f} m, Payload height={h_p:.2f} m, Time={t:.2f} s")    
-
-    f_b = forecast_cache.get(lat_b, lon_b, h_b, current_time)
+    # Get forecast for balloon (using degrees)
+    f_b = forecast_cache.get(lat_b_deg, lon_b_deg, h_b, current_time)
     if f_b is None:
-        f_b = get_forecast(lat_b, lon_b, h_b, current_time)
-        forecast_cache.set(lat_b, lon_b, h_b, current_time, f_b)
+        f_b = get_forecast(lat_b_deg, lon_b_deg, h_b, current_time)
+        forecast_cache.set(lat_b_deg, lon_b_deg, h_b, current_time, f_b)
 
-    f_p = forecast_cache.get(lat_p, lon_p, h_p, current_time)
+    # Get forecast for payload (using degrees)
+    f_p = forecast_cache.get(lat_p_deg, lon_p_deg, h_p, current_time)
     if f_p is None:
-        f_p = get_forecast(lat_p, lon_p, h_p, current_time)
-        forecast_cache.set(lat_p, lon_p, h_p, current_time, f_p)
+        f_p = get_forecast(lat_p_deg, lon_p_deg, h_p, current_time)
+        forecast_cache.set(lat_p_deg, lon_p_deg, h_p, current_time, f_p)
+        
     
     
     wind_b = enu_vector_to_ecef(np.array([f_b["u"], f_b["v"], f_b["w"]]), lat_b, lon_b)
@@ -326,42 +325,53 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     return statedot 
 
 
-if __name__ == '__main__':
-    print('Start of Simulation')
-    lat0, lon0, h0 = np.deg2rad(40.0), np.deg2rad(-75.0), 100.0
+
+def run_simulation(sim_id, lat0, lon0, h0=100.0):
+    print(f'Start of Simulation {sim_id}')
     
-    balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0) # 1.745
+    # Convert lat, lon to radians
+    lat0_rad, lon0_rad = np.deg2rad(lat0), np.deg2rad(lon0)
+    
+    # Initialize system components
+    balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0)
     payload = Payload(radius=0.2, length=0.5, mass=3)
     tether = Tether(length=20.0)
     t0 = datetime.now(ZoneInfo("UTC"))
     system = System(balloon, payload, tether, t0)
 
-    x_b0 = geodetic_to_ecef(lat0, lon0, h0)
-    up = np.array([np.cos(lat0) * np.cos(lon0), np.cos(lat0) * np.sin(lon0), np.sin(lat0)])
+    # Initial positions
+    x_b0 = geodetic_to_ecef(lat0_rad, lon0_rad, h0)
+    up = np.array([np.cos(lat0_rad) * np.cos(lon0_rad), 
+                   np.cos(lat0_rad) * np.sin(lon0_rad), 
+                   np.sin(lat0_rad)])
     x_p0 = x_b0 - tether.length * up
     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
 
+    # Time span and evaluation points
     t_span = (0.0, 5*3600.0)
     t_eval = np.linspace(0.0, t_span[1], 360)
     
+    # Run simulation
     start_time = time.time()
-    sol = solve_ivp(system, t_span, y0, method="Radau", t_eval=t_eval, rtol=1e-4, atol=1e-5, max_step=10.0)
-    print(f"Simulation took {time.time() - start_time:.2f} seconds")
+    sol = solve_ivp(system, t_span, y0, method="Radau", t_eval=t_eval, 
+                    rtol=1e-4, atol=1e-5, max_step=10.0)
+    print(f"Simulation {sim_id} took {time.time() - start_time:.2f} seconds")
 
+    # Extract results
     Xb, Yb, Zb = sol.y[0], sol.y[1], sol.y[2]
     Vbx, Vby, Vbz = sol.y[3], sol.y[4], sol.y[5]
     Xp, Yp, Zp = sol.y[6], sol.y[7], sol.y[8]
     t = sol.t
     
-
+    # Log trajectory
     traj_log = {
         "t": sol.t.tolist(),
-        "balloon_ecef":  {
+        "balloon_ecef": {
             "X": Xb.tolist(),
             "Y": Yb.tolist(),
             "Z": Zb.tolist()
         },
-        "payload_ecef":  {
+        "payload_ecef": {
             "X": Xp.tolist(),
             "Y": Yp.tolist(),
             "Z": Zp.tolist()
@@ -369,110 +379,92 @@ if __name__ == '__main__':
         "origin": {
             "lat0": float(lat0),
             "lon0": float(lon0),
-            "h0":   float(h0)
+            "h0": float(h0)
         },
         "tether_length": tether.length
     }
 
-    with open("trajectory.json", "w") as f:
+    # Write to unique JSON file
+    output_file = f"trajectory_{sim_id}.json"
+    with open(output_file, "w") as f:
         json.dump(traj_log, f)
-    print("Trajectory written to trajectory.json")
+    print(f"Trajectory {sim_id} written to {output_file}")
+
+def main():
+    # Base coordinates
+    base_lat, base_lon = 37.428230, -122.168861
+    h0 = 100.0
+    
+    # Number of simulations
+    num_simulations = 4
+    
+    # Random perturbation range 
+    lat_pert = np.random.uniform(-0.1, 0.1, num_simulations)
+    lon_pert = np.random.uniform(-0.1, 0.1, num_simulations)
+    
+    # List of simulation parameters
+    sim_params = [(i, base_lat + lat_pert[i], base_lon + lon_pert[i], h0) 
+                  for i in range(num_simulations)]
+    
+    # Run simulations in parallel
+    with mp.Pool(processes=os.cpu_count()-5) as pool:
+        pool.starmap(run_simulation, sim_params)
+
+if __name__ == "__main__":
+    main()
 
 
+# if __name__ == '__main__':
+#     print('Start of Simulation')
+#     lat0, lon0, h0 = np.deg2rad(37.428230), np.deg2rad(-122.168861), 100.0
+    
+#     balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0) # 1.745
+#     payload = Payload(radius=0.2, length=0.5, mass=3)
+#     tether = Tether(length=20.0)
+#     t0 = datetime.now(ZoneInfo("UTC"))
+#     system = System(balloon, payload, tether, t0)
 
-    # Compute altitudes and ENU velocities
-    heights = np.array([ecef_to_geodetic_newton(x, y, z)[2] for x, y, z in zip(Xb, Yb, Zb)])
-    heights_p = np.array([ecef_to_geodetic_newton(x, y, z)[2] for x, y, z in zip(Xp, Yp, Zp)])
-    v_enu = np.array([ecef_to_enu(np.array([vx, vy, vz]).reshape(1, 3), lat0, lon0, h0)[0]
-                      for vx, vy, vz in zip(Vbx, Vby, Vbz)])
-    speed = np.sqrt(v_enu[:, 0]**2 + v_enu[:, 1]**2 + v_enu[:, 2]**2)
+#     x_b0 = geodetic_to_ecef(lat0, lon0, h0)
+#     up = np.array([np.cos(lat0) * np.cos(lon0), np.cos(lat0) * np.sin(lon0), np.sin(lat0)])
+#     x_p0 = x_b0 - tether.length * up
+#     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
 
-    # Compute tether length in ENU coordinates
-    enu_b = np.array([ecef_to_enu(np.array([x, y, z]).reshape(1, 3), lat0, lon0, h0)[0]
-                      for x, y, z in zip(Xb, Yb, Zb)])
-    enu_p = np.array([ecef_to_enu(np.array([x, y, z]).reshape(1, 3), lat0, lon0, h0)[0]
-                      for x, y, z in zip(Xp, Yp, Zp)])
-    tether_lengths = np.sqrt(np.sum((enu_b - enu_p)**2, axis=1))
-    print("Tether lengths (first 10):", tether_lengths[:10])
-    print(f"Tether lengths stats: min={tether_lengths.min():.4f}, max={tether_lengths.max():.4f}, mean={tether_lengths.mean():.4f}")
+#     t_span = (0.0, 5*3600.0)
+#     t_eval = np.linspace(0.0, t_span[1], 360)
+    
+#     start_time = time.time()
+#     sol = solve_ivp(system, t_span, y0, method="Radau", t_eval=t_eval, rtol=1e-4, atol=1e-5, max_step=10.0)
+#     print(f"Simulation took {time.time() - start_time:.2f} seconds")
 
-    # Plot 1: Altitude vs Time
-    plt.figure()
-    plt.plot(t/60.0, heights, lw=1.5, label='Balloon')
-    plt.plot(t/60.0, heights_p, lw=1.5, linestyle='--', label='Payload')
-    plt.xlabel('Time [min]')
-    plt.ylabel('Altitude [m]')
-    plt.title('Balloon and Payload Altitude vs. Time')
-    plt.grid(True)
-    plt.legend()
-    plt.savefig('altitude_vs_time.png')
+#     Xb, Yb, Zb = sol.y[0], sol.y[1], sol.y[2]
+#     Vbx, Vby, Vbz = sol.y[3], sol.y[4], sol.y[5]
+#     Xp, Yp, Zp = sol.y[6], sol.y[7], sol.y[8]
+#     t = sol.t
+    
 
-    # Plot 2: ENU Velocity Components
-    fig, axs = plt.subplots(4, 1, figsize=(8, 12), sharex=True)
+#     traj_log = {
+#         "t": sol.t.tolist(),
+#         "balloon_ecef":  {
+#             "X": Xb.tolist(),
+#             "Y": Yb.tolist(),
+#             "Z": Zb.tolist()
+#         },
+#         "payload_ecef":  {
+#             "X": Xp.tolist(),
+#             "Y": Yp.tolist(),
+#             "Z": Zp.tolist()
+#         },
+#         "origin": {
+#             "lat0": float(lat0),
+#             "lon0": float(lon0),
+#             "h0":   float(h0)
+#         },
+#         "tether_length": tether.length
+#     }
 
-    # Debug: Print sample v_enu values to verify
-    print("Sample v_enu (first 5 points, [East, North, Up]):", v_enu[:5])
+#     with open("trajectory.json", "w") as f:
+#         json.dump(traj_log, f)
+#     print("Trajectory written to trajectory.json")
 
-    # Explicitly plot East, North, Up components
-    axs[0].plot(t/60.0, v_enu[:, 0], color='C0', lw=1.5, label='East')
-    axs[0].set_ylabel('East [m/s]')
-    axs[0].grid(True)
-    axs[0].legend()
-
-    axs[1].plot(t/60.0, v_enu[:, 1], color='C1', lw=1.5, label='North')
-    axs[1].set_ylabel('North [m/s]')
-    axs[1].grid(True)
-    axs[1].legend()
-
-    axs[2].plot(t/60.0, v_enu[:, 2], color='C2', lw=1.5, label='Up')
-    axs[2].set_ylabel('Up [m/s]')
-    axs[2].grid(True)
-    axs[2].legend()
-
-    axs[3].plot(t/60.0, speed, color='k', lw=1.5, label='Speed')
-    axs[3].set_ylabel('Speed [m/s]')
-    axs[3].set_xlabel('Time [min]')
-    axs[3].grid(True)
-    axs[3].legend()
-
-    # Set y-axis limits to improve readability (adjust based on data)
-    for ax in axs[:3]:
-        ax.set_ylim(np.min(v_enu) - 0.5, np.max(v_enu) + 0.5)  # Adjust based on data range
-    axs[3].set_ylim(0, np.max(speed) + 0.5)
-
-    fig.suptitle('Balloon Velocity in ENU Coordinates')
-    plt.tight_layout(rect=[0, 0, 1, 0.98])
-    plt.savefig('velocity_enu.png')
-
-    # Plot 3: Tether Length
-    plt.figure()
-    plt.plot(t/60.0, tether_lengths, lw=1.5, label='Tether Length')
-    plt.axhline(tether.length, color='r', linestyle='--', label='Nominal Length (20 m)')
-    plt.ylim(19.9, 20.1)  # Zoom in around 20 m
-    plt.xlabel('Time [min]')
-    plt.ylabel('Tether Length [m]')
-    plt.title('Tether Length vs. Time')
-    plt.grid(True)
-    plt.legend()
-    plt.savefig('tether_length.png')
-
-    # Plot 4: 3D Trajectory in ENU
-    enu_traj = np.array([ecef_to_enu(np.array([x, y, z]).reshape(1, 3), lat0, lon0, h0)[0]
-                         for x, y, z in zip(Xb, Yb, Zb)])
-    enu_traj_p = np.array([ecef_to_enu(np.array([x, y, z]).reshape(1, 3), lat0, lon0, h0)[0]
-                           for x, y, z in zip(Xp, Yp, Zp)])
-    fig = plt.figure(figsize=(8, 6))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot(enu_traj[:, 0], enu_traj[:, 1], enu_traj[:, 2], lw=2, label='Balloon')
-    ax.plot(enu_traj_p[:, 0], enu_traj_p[:, 1], enu_traj_p[:, 2], lw=2, linestyle='--', label='Payload')
-    ax.set_xlabel('East [m]')
-    ax.set_ylabel('North [m]')
-    ax.set_zlabel('Up [m]')
-    ax.set_title('Balloon and Payload Trajectory in ENU')
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig('trajectory_enu.png')
-
-    plt.show()
-    print('End of Simulation')
+#     print('End of Simulation')
     
