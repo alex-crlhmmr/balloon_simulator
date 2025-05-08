@@ -29,7 +29,7 @@ This project simulates the trajectories of tethered balloons using weather data 
 2. **Customize Parameters**:
    - Modify `propagate.py`’s `if __name__ == "__main__":` block:
      ```python
-     main(initial_lat=40.7128, initial_lon=-74.0060, initial_height=150.0, num_simulations=6, duration_hours=2.5, num_cpus='all', pert_deg=0.05)
+     main(initial_lat=40.7128, initial_lon=-74.0060, initial_height=150.0, num_simulations=6, duration_hours=2.5, num_cpus='all')
      ```
 
 3. **Test Weather Data**:
