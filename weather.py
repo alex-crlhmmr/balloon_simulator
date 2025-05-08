@@ -1,3 +1,9 @@
+# File: weather.py
+# Author: Alexandre Carlhammar
+# Date: 2025-05-08
+# Description: Fetches GFS weather data via OPENDAP and interpolates wind, temperature,
+#              pressure, and humidity using bilinear (horizontal) and linear (vertical) methods.
+
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -250,7 +256,7 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
 
 if __name__ == "__main__":
     now_pdt = datetime.now(ZoneInfo("America/Los_Angeles"))
-    lat, lon, alt = 45.00, 163.39, 30.0
+    lat, lon, alt = 59.21, -42.24, 30.0
     fc = get_forecast(lat, lon, alt, now_pdt)
     print(f"Wind at lat={lat}, lon={lon}, alt={alt} m:")
     print(f"u={fc['u']:.2f} m/s, v={fc['v']:.2f} m/s, w={fc['w']:.2f} m/s")

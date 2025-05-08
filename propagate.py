@@ -1,3 +1,9 @@
+# File: propagate.py
+# Author: Alexandre Carlhammar
+# Date: 2025-05-08
+# Description: Simulates tethered balloon trajectories using GFS weather data, with
+#              parallel execution and configurable initial conditions.
+
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from weather import get_forecast
@@ -8,8 +14,6 @@ import numpy as np
 from typing import Dict, Any, Union
 from constants import R_UNIVERSAL, GAS_DATA, g, RE
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import multiprocessing as mp
 import time
 import sys

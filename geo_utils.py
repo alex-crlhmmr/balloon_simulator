@@ -1,3 +1,9 @@
+# File: geo_utils.py
+# Author: Alexandre Carlhammar
+# Date: 2025-05-08
+# Description: Provides functions for coordinate conversions between ECEF, geodetic,
+#              and ENU systems for balloon simulation.
+
 import numpy as np
 from typing import Tuple, Union
 from constants import RE, f, eE, eE2, RP, ep2

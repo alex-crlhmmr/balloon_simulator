@@ -1,3 +1,9 @@
+# File: gas_utils.py
+# Author: Alexandre Carlhammar
+# Date: 2025-05-08
+# Description: Computes gas properties, including viscosity, for drag calculations
+#              in balloon simulation.
+
 def sutherland_viscosity(T: float) -> float:
     """
     Compute dynamic viscosity mu [Pa·s] of air at temperature T [K]

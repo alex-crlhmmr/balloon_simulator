@@ -1,4 +1,7 @@
-# constants.py
+# File: constants.py
+# Author: Alexandre Carlhammar
+# Date: 2025-05-08
+# Description: Defines constants for GFS data access and physical parameters.
 
 import numpy as np
 
