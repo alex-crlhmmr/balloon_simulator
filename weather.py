@@ -33,10 +33,10 @@ class GFSDataCache:
                 try:
                     self.full_ds = xr.open_dataset(OPENDAP_URL, decode_times=True)[ISOBARIC_VARS + SURFACE_VARS]
                     self.last_fetch_time = current_real_time
-                    print(f"Dataset dimensions: {self.full_ds.dims}")
-                    print(f"Dataset variables: {list(self.full_ds.variables)}")
-                    if 'height_above_ground2' in self.full_ds.coords:
-                        print(f"Height above ground levels: {self.full_ds['height_above_ground2'].values}")
+                    # print(f"Dataset dimensions: {self.full_ds.dims}")
+                    # print(f"Dataset variables: {list(self.full_ds.variables)}")
+                    # if 'height_above_ground2' in self.full_ds.coords:
+                    #     print(f"Height above ground levels: {self.full_ds['height_above_ground2'].values}")
                     self.time_dim = None
                     for dim in self.full_ds.dims:
                         if dim.startswith('time'):
@@ -44,7 +44,7 @@ class GFSDataCache:
                             break
                     if self.time_dim is None:
                         raise ValueError(f"No time dimension found in dataset. Available dimensions: {self.full_ds.dims}")
-                    print(f"Selected time dimension: {self.time_dim}")
+                    # print(f"Selected time dimension: {self.time_dim}")
                     # Invalidate time slice and tile
                     self.ds_t = None
                     self.cached_time = None
@@ -97,7 +97,7 @@ class GFSDataCache:
                     lat=[lat_lo, lat_hi],
                     lon=[lon_lo, lon_hi]
                 ).sortby(["lat", "lon"])
-                print(f"Tile dataset shape: {ds_4.dims}")
+                # print(f"Tile dataset shape: {ds_4.dims}")
                 dy = (lat - lat_lo) / (lat_hi - lat_lo)
                 dx = ((lon % 360.0) - lon_lo) / (lon_hi - lon_lo)
                 w00 = (1 - dy) * (1 - dx)
@@ -250,6 +250,7 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
 
 if __name__ == "__main__":
     now_pdt = datetime.now(ZoneInfo("America/Los_Angeles"))
-    print("Current PDT time:", now_pdt)
-    fc = get_forecast(45.49, -122.7, 250, now_pdt)
-    print(fc)
+    lat, lon, alt = 45.00, 163.39, 30.0
+    fc = get_forecast(lat, lon, alt, now_pdt)
+    print(f"Wind at lat={lat}, lon={lon}, alt={alt} m:")
+    print(f"u={fc['u']:.2f} m/s, v={fc['v']:.2f} m/s, w={fc['w']:.2f} m/s")

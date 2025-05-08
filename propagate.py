@@ -326,7 +326,7 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
 
 
 
-def run_simulation(sim_id, lat0, lon0, h0=100.0):
+def run_simulation(sim_id, lat0, lon0, h0=100.0, duration_hours=5.0):
     print(f'Start of Simulation {sim_id}')
     
     # Convert lat, lon to radians
@@ -348,7 +348,7 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0):
     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
 
     # Time span and evaluation points
-    t_span = (0.0, 5*3600.0)
+    t_span = (0.0, duration_hours * 3600.0)
     t_eval = np.linspace(0.0, t_span[1], 360)
     
     # Run simulation
@@ -390,81 +390,30 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0):
         json.dump(traj_log, f)
     print(f"Trajectory {sim_id} written to {output_file}")
 
-def main():
-    # Base coordinates
-    base_lat, base_lon = 37.428230, -122.168861
-    h0 = 100.0
-    
-    # Number of simulations
-    num_simulations = 4
-    
-    # Random perturbation range 
+def main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=100.0, num_simulations=4, duration_hours=5.0, num_cpus=4):
+    # Validate inputs
+    if not isinstance(num_simulations, int) or num_simulations < 1:
+        raise ValueError("num_simulations must be a positive integer")
+    if not isinstance(duration_hours, (int, float)) or duration_hours <= 0:
+        raise ValueError("duration_hours must be a positive number")
+    if num_cpus == 'all':
+        processes = os.cpu_count()
+    elif isinstance(num_cpus, int) and num_cpus > 0:
+        processes = min(num_cpus, os.cpu_count())
+    else:
+        raise ValueError("num_cpus must be a positive integer or 'all'")
+
+    # Random perturbation range
     lat_pert = np.random.uniform(-0.1, 0.1, num_simulations)
     lon_pert = np.random.uniform(-0.1, 0.1, num_simulations)
     
     # List of simulation parameters
-    sim_params = [(i, base_lat + lat_pert[i], base_lon + lon_pert[i], h0) 
+    sim_params = [(i, initial_lat + lat_pert[i], initial_lon + lat_pert[i], initial_height, duration_hours) 
                   for i in range(num_simulations)]
     
     # Run simulations in parallel
-    with mp.Pool(processes=os.cpu_count()-5) as pool:
+    with mp.Pool(processes=processes) as pool:
         pool.starmap(run_simulation, sim_params)
 
 if __name__ == "__main__":
-    main()
-
-
-# if __name__ == '__main__':
-#     print('Start of Simulation')
-#     lat0, lon0, h0 = np.deg2rad(37.428230), np.deg2rad(-122.168861), 100.0
-    
-#     balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0) # 1.745
-#     payload = Payload(radius=0.2, length=0.5, mass=3)
-#     tether = Tether(length=20.0)
-#     t0 = datetime.now(ZoneInfo("UTC"))
-#     system = System(balloon, payload, tether, t0)
-
-#     x_b0 = geodetic_to_ecef(lat0, lon0, h0)
-#     up = np.array([np.cos(lat0) * np.cos(lon0), np.cos(lat0) * np.sin(lon0), np.sin(lat0)])
-#     x_p0 = x_b0 - tether.length * up
-#     y0 = np.hstack([x_b0, np.zeros(3), x_p0, np.zeros(3)])
-
-#     t_span = (0.0, 5*3600.0)
-#     t_eval = np.linspace(0.0, t_span[1], 360)
-    
-#     start_time = time.time()
-#     sol = solve_ivp(system, t_span, y0, method="Radau", t_eval=t_eval, rtol=1e-4, atol=1e-5, max_step=10.0)
-#     print(f"Simulation took {time.time() - start_time:.2f} seconds")
-
-#     Xb, Yb, Zb = sol.y[0], sol.y[1], sol.y[2]
-#     Vbx, Vby, Vbz = sol.y[3], sol.y[4], sol.y[5]
-#     Xp, Yp, Zp = sol.y[6], sol.y[7], sol.y[8]
-#     t = sol.t
-    
-
-#     traj_log = {
-#         "t": sol.t.tolist(),
-#         "balloon_ecef":  {
-#             "X": Xb.tolist(),
-#             "Y": Yb.tolist(),
-#             "Z": Zb.tolist()
-#         },
-#         "payload_ecef":  {
-#             "X": Xp.tolist(),
-#             "Y": Yp.tolist(),
-#             "Z": Zp.tolist()
-#         },
-#         "origin": {
-#             "lat0": float(lat0),
-#             "lon0": float(lon0),
-#             "h0":   float(h0)
-#         },
-#         "tether_length": tether.length
-#     }
-
-#     with open("trajectory.json", "w") as f:
-#         json.dump(traj_log, f)
-#     print("Trajectory written to trajectory.json")
-
-#     print('End of Simulation')
-    
+    main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=50.0, num_simulations=1, duration_hours=5, num_cpus=8)
