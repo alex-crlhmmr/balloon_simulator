@@ -23,7 +23,7 @@ class GFSDataCache:
 
     def _update_cycle(self, when: datetime):
         with self.lock:
-            print(f"Checking cycle for {when}")
+            # print(f"Checking cycle for {when}")
             # Check if we need a new dataset (real-time based)
             current_real_time = datetime.now(timezone.utc)
             if (self.full_ds is None or 
@@ -128,20 +128,27 @@ class GFSDataCache:
         T = collapse("Temperature_isobaric")
         q = collapse("Specific_humidity_isobaric")
 
-        def collapse_surf(var: str):
+        def collapse_surf(var: str, height=None):
             da = ds_4[var]
-            for d in da.dims:
-                if d not in ("lat", "lon"):
-                    da = da.isel({d: 0})
-                    break
+            if height is not None:
+                try:
+                    idx = np.where(ds_4['height_above_ground2'].values == height)[0][0]
+                    da = da.isel({ds_4['height_above_ground2'].dims[0]: idx})
+                except IndexError:
+                    raise ValueError(f"Height {height} not found in height_above_ground2")
+            else:
+                da = da.isel({ds_4['height_above_ground2'].dims[0]: 0})
             m = da.values
             if m.shape == (2, 2):
                 return w00 * m[0, 0] + w01 * m[0, 1] + w10 * m[1, 0] + w11 * m[1, 1]
             else:
                 raise ValueError(f"Unexpected shape for {var}: {m.shape}")
 
-        u10 = float(collapse_surf("u-component_of_wind_height_above_ground"))
-        v10 = float(collapse_surf("v-component_of_wind_height_above_ground"))
+        # u10 = float(collapse_surf("u-component_of_wind_height_above_ground"))
+        # v10 = float(collapse_surf("v-component_of_wind_height_above_ground"))
+        heights = [10, 20, 30, 40, 50, 80, 100]
+        u_surface = [float(collapse_surf("u-component_of_wind_height_above_ground", height=h)) for h in heights]
+        v_surface = [float(collapse_surf("v-component_of_wind_height_above_ground", height=h)) for h in heights]
 
         vert_dim = ds_4["Geopotential_height_isobaric"].dims[0]
         p = ds_4.coords[vert_dim].values.astype(float)
@@ -154,8 +161,10 @@ class GFSDataCache:
         valid_dt = np.datetime64(ds_4[self.time_dim].values).astype("datetime64[ms]").astype(datetime)
         cycle_dt = self.last_fetch_time  # Dataset fetch time
 
-        return z, p, u, v, w, T, q, u10, v10, valid_dt, cycle_dt
+        # return z, p, u, v, w, T, q, u10, v10, valid_dt, cycle_dt
+        return z, p, u, v, w, T, q, u_surface, v_surface, valid_dt, cycle_dt
 
+    
 # singleton instance
 gfs_cache = GFSDataCache()
 
@@ -192,32 +201,27 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
         time = time.replace(tzinfo=local_tz)
     time_utc = time.astimezone(timezone.utc)
 
-    z, p, u_prof, v_prof, w_prof, T_prof, q_prof, u10, v10, valid_dt, cycle_dt = gfs_cache.get_column(lat, lon, time_utc)
+    z, p, u_prof, v_prof, w_prof, T_prof, q_prof, u_surface, v_surface, valid_dt, cycle_dt = gfs_cache.get_column(lat, lon, time_utc)
 
-    # Debug shapes to ensure 1D profiles
-    # print(f"u_prof shape: {u_prof.shape}, v_prof shape: {v_prof.shape}, w_prof shape: {w_prof.shape}")
-
-    z0 = 0.03
     z_low = 100.0
     z_high = float(z[0])
+    surface_heights = [10, 20, 30, 40, 50, 80, 100]
 
-    def log_wind(u_ref, z_ref, z):
-        return u_ref * np.log(z / z0) / np.log(z_ref / z0)
-
-    u_log = log_wind(u10, 10.0, alt) if alt > z0 else 0.0
-    v_log = log_wind(v10, 10.0, alt) if alt > z0 else 0.0
-
-    u_int = interp_at(z, u_prof, alt)
-    v_int = interp_at(z, v_prof, alt)
+    def interp_surface(alt, heights, values):
+        if alt <= heights[0]:
+            return values[0]  # Use 10 m wind below 10 m
+        return np.interp(alt, heights, values)
 
     if alt <= z_low:
-        u_at, v_at = u_log, v_log
-    elif alt >= z_high:
-        u_at, v_at = u_int, v_int
-    else:
+        u_at = interp_surface(alt, surface_heights, u_surface)
+        v_at = interp_surface(alt, surface_heights, v_surface)
+    elif alt < z_high:
         frac = (alt - z_low) / (z_high - z_low)
-        u_at = (1 - frac) * u_log + frac * u_int
-        v_at = (1 - frac) * v_log + frac * v_int
+        u_at = (1 - frac) * u_surface[-1] + frac * interp_at(z, u_prof, alt)
+        v_at = (1 - frac) * v_surface[-1] + frac * interp_at(z, v_prof, alt)
+    else:
+        u_at = interp_at(z, u_prof, alt)
+        v_at = interp_at(z, v_prof, alt)
 
     w_at = interp_at(z, w_prof, alt)
     T_at = interp_at(z, T_prof, alt)
@@ -239,7 +243,7 @@ def get_forecast(lat: float, lon: float, alt: float, time: datetime, local_tz: Z
     return {
         "u": u_at, "v": v_at, "w": w_at,
         "T": T_at, "p": p_at, "q": q_at, "rho": rho_at,
-        "u10": u10, "v10": v10,
+        "u10": u_surface[0], "v10": v_surface[0],
         "valid_dt": valid_dt, "cycle_dt": cycle_dt,
     }
 
