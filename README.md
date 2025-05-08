@@ -113,6 +113,7 @@ The simulation automatically fetches GFS forecasts in `weather.py` using `GFSDat
 - Add pipeline to vizualize live/post-flight data
 - Ability to ingest complex inertial and drag profiles
 - Improve simulation speed
+- Investigate Deep RL framework for policy training
 - Improve tether model (mass, drag, material, stiffness/damp)
 - Optimize dataset fetching
 - Add command-line argument support for dynamic parameters.
