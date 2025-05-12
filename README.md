@@ -13,19 +13,78 @@ This project simulates the trajectories of tethered balloons using weather data 
 
 
 ## Usage
-1. **Run Simulations**:
-   - Execute `propagate.py` with default parameters:
-     ```bash
-     python propagate.py
-     ```
-   - Default settings:
-     - Initial position: `lat=37.428230`, `lon=-122.168861`, `height=50.0 m`
-     - Simulations: 1
-     - Duration: 5 hours
-     - CPUs: 8
-     - Perturbation: ±0.1°
-   - Outputs JSON files (`trajectory_{sim_id}.json`) with balloon and payload trajectories.
 
+1. **Run Simulations**  
+   You have two options—run directly with Python or via Docker:
+
+   **a) Local (direct Python)**  
+   1. Install dependencies:  
+      ```bash
+      pip install -r requirements.txt
+      ```  
+   2. Run with defaults:  
+      ```bash
+      python propagate.py
+      ```  
+   3. **Default settings**:  
+      - Initial position: `lat=37.428230`, `lon=-122.168861`, `height=50.0 m`  
+      - Simulations: `1`  
+      - Duration: `5 hours`  
+      - CPUs: `8`  
+      - Perturbation: ±`0.1°`  
+   4. Outputs one JSON per run into:  
+      ```
+      output/trajectory_{sim_id}.json
+      ```  
+   5. To override any parameter:  
+      ```bash
+      python propagate.py \
+        --initial-lat 36.5 \
+        --initial-lon -122.0 \
+        --initial-height 100.0 \
+        --num-simulations 10 \
+        --duration-hours 24 \
+        --num-cpus 4
+      ```
+
+   **b) Docker**  
+   1. Build the image:  
+      ```bash
+      docker build -t balloon-sim:latest .
+      ```  
+   2. Run with defaults (mounts `./output` → `/app/output`):  
+      ```bash
+      docker run --rm -it \
+        -v "$(pwd)/output:/app/output" \
+        balloon-sim:latest
+      ```  
+   3. Override flags:  
+      ```bash
+      docker run --rm -it \
+        -v "$(pwd)/output:/app/output" \
+        balloon-sim:latest \
+        --initial-lat 36.5 \
+        --initial-lon -122.0 \
+        --initial-height 100.0 \
+        --num-simulations 10 \
+        --duration-hours 24 \
+        --num-cpus 4
+      ```  
+   4. (Optional) Limit CPUs:  
+      - Cap at 4 cores:  
+        ```bash
+        docker run --rm --cpus=4 \
+          -v "$(pwd)/output:/app/output" \
+          balloon-sim:latest \
+          --num-cpus 4
+        ```  
+      - Pin to cores 0–3:  
+        ```bash
+        docker run --rm --cpuset-cpus="0-3" \
+          -v "$(pwd)/output:/app/output" \
+          balloon-sim:latest \
+          --num-cpus 4
+        ```
 2. **Customize Parameters**:
    - Modify `propagate.py`’s `if __name__ == "__main__":` block:
      ```python

@@ -9,6 +9,7 @@ from typing import Dict, Any, Union
 from constants import R_UNIVERSAL, GAS_DATA, g, RE
 from dataclasses import dataclass
 import multiprocessing as mp
+import argparse
 import time
 import json
 import os
@@ -234,8 +235,8 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     statedot[6:9] = v_p
     statedot[9:12] = a_p
     
-    print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
-    print(f"Balloon wind speed: {f_b['u']:.2f} m/s, {f_b['v']:.2f} m/s, {f_b['w']:.2f} m/s")
+    # print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
+    # print(f"Balloon wind speed: {f_b['u']:.2f} m/s, {f_b['v']:.2f} m/s, {f_b['w']:.2f} m/s")
      
     return statedot
 
@@ -276,7 +277,9 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0, duration_hours=5.0):
         "tether_length": tether.length
     }
 
-    output_file = f"trajectory_{sim_id}.json"
+    output_dir = os.path.join(os.getcwd(), "output")
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, f"trajectory_{sim_id}.json")
     with open(output_file, "w") as f:
         json.dump(traj_log, f)
     print(f"Trajectory {sim_id} written to {output_file}")
@@ -293,8 +296,8 @@ def main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=50.0, nu
     else:
         raise ValueError("num_cpus must be a positive integer or 'all'")
 
-    lat_pert = np.random.uniform(-0.1, 0.1, num_simulations)
-    lon_pert = np.random.uniform(-0.1, 0.1, num_simulations)
+    lat_pert = np.random.uniform(-0.01, 0.01, num_simulations)
+    lon_pert = np.random.uniform(-0.01, 0.01, num_simulations)
     
     sim_params = [(i, initial_lat + lat_pert[i], initial_lon + lon_pert[i], initial_height, duration_hours) 
                   for i in range(num_simulations)]
@@ -308,5 +311,48 @@ def main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=50.0, nu
         with mp.Pool(processes=processes) as pool:
             pool.starmap(run_simulation, sim_params)
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Run balloon trajectory simulations"
+    )
+    parser.add_argument(
+        "--initial-lat", type=float, default=36.40,
+        help="launch latitude, in degrees"
+    )
+    parser.add_argument(
+        "--initial-lon", type=float, default=-123.9,
+        help="launch longitude, in degrees"
+    )
+    parser.add_argument(
+        "--initial-height", type=float, default=100.0,
+        help="initial balloon height, in meters"
+    )
+    parser.add_argument(
+        "--num-simulations", type=int, default=1,
+        help="how many Monte-Carlo runs to perform"
+    )
+    parser.add_argument(
+        "--duration-hours", type=float, default=168,
+        help="simulation duration, in hours"
+    )
+    parser.add_argument(
+        "--num-cpus", type=int, default=7,
+        help="number of worker processes to spawn"
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    main(initial_lat=40.0, initial_lon=-149.0, initial_height=100.0, num_simulations=1, duration_hours=10, num_cpus=7)
+    args = parse_args()
+    main(
+        initial_lat=args.initial_lat,
+        initial_lon=args.initial_lon,
+        initial_height=args.initial_height,
+        num_simulations=args.num_simulations,
+        duration_hours=args.duration_hours,
+        num_cpus=args.num_cpus
+    )
+    
+    # python propagate.py --initial-lat 36.4 --initial-lon -123.9 --initial-height 100.0 --num-simulations 10 --duration-hours 72 --num-cpus 4
+

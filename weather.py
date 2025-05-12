@@ -185,8 +185,8 @@ class GFSDataCache:
         if len(self.bilinear_cache) >= self.bilinear_cache_max_size:
             self.bilinear_cache.pop(next(iter(self.bilinear_cache)))
         self.bilinear_cache[cache_key] = (z, p, u, v, w, T, q, u_surface, v_surface)
-        print(f"get_column took {time.time() - start:.4f} s")
-        print(f"Interpolated u[0]={u[0]:.4f}, v[0]={v[0]:.4f} at lat={lat:.6f}, lon={lon:.6f}")
+        # print(f"get_column took {time.time() - start:.4f} s")
+        # print(f"Interpolated u[0]={u[0]:.4f}, v[0]={v[0]:.4f} at lat={lat:.6f}, lon={lon:.6f}")
         return z, p, u, v, w, T, q, u_surface, v_surface, valid_dt, cycle_dt, was_tile_reused
 
 # singleton instance
@@ -221,7 +221,7 @@ def get_forecast(lat: float, lon: float, alt: float, when: datetime, local_tz: Z
     start = time.time()
     z, p, u_prof, v_prof, w_prof, T_prof, q_prof, u_surface, v_surface, valid_dt, cycle_dt, was_tile_reused = gfs_cache.get_column(lat, lon, time_utc)
     column_time = time.time() - start
-    print(f"GFSDataCache.get_column took {column_time:.4f} s")
+    # print(f"GFSDataCache.get_column took {column_time:.4f} s")
 
     z_low = 100.0
     z_high = float(z[0])
