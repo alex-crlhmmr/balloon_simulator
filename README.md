@@ -29,9 +29,8 @@ This project simulates the trajectories of tethered balloons using weather data 
    3. **Default settings**:  
       - Initial position: `lat=37.428230`, `lon=-122.168861`, `height=50.0 m`  
       - Simulations: `1`  
-      - Duration: `5 hours`  
-      - CPUs: `8`  
-      - Perturbation: ±`0.1°`  
+      - Duration: `1 hour`  
+      - CPUs: `3`  
    4. Outputs one JSON per run into:  
       ```
       output/trajectory_{sim_id}.json
@@ -70,28 +69,8 @@ This project simulates the trajectories of tethered balloons using weather data 
         --duration-hours 24 \
         --num-cpus 4
       ```  
-   4. (Optional) Limit CPUs:  
-      - Cap at 4 cores:  
-        ```bash
-        docker run --rm --cpus=4 \
-          -v "$(pwd)/output:/app/output" \
-          balloon-sim:latest \
-          --num-cpus 4
-        ```  
-      - Pin to cores 0–3:  
-        ```bash
-        docker run --rm --cpuset-cpus="0-3" \
-          -v "$(pwd)/output:/app/output" \
-          balloon-sim:latest \
-          --num-cpus 4
-        ```
-2. **Customize Parameters**:
-   - Modify `propagate.py`’s `if __name__ == "__main__":` block:
-     ```python
-     main(initial_lat=40.7128, initial_lon=-74.0060, initial_height=150.0, num_simulations=6, duration_hours=2.5, num_cpus='all')
-     ```
 
-3. **Test Weather Data**:
+2. **Test Weather Data**:
    - Run `weather.py` to test wind components:
      ```bash
      python weather.py

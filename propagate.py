@@ -284,7 +284,7 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0, duration_hours=5.0):
         json.dump(traj_log, f)
     print(f"Trajectory {sim_id} written to {output_file}")
 
-def main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=50.0, num_simulations=1, duration_hours=0.1, num_cpus=1):
+def main(initial_lat=37.428230, initial_lon=-122.168861, initial_height=50.0, num_simulations=1, duration_hours=5, num_cpus=3):
     if not isinstance(num_simulations, int) or num_simulations < 1:
         raise ValueError("num_simulations must be a positive integer")
     if not isinstance(duration_hours, (int, float)) or duration_hours <= 0:
