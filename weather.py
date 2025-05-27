@@ -218,9 +218,16 @@ def get_forecast(lat: float, lon: float, alt: float, when: datetime, local_tz: Z
         when = when.replace(tzinfo=local_tz)
     time_utc = when.astimezone(timezone.utc)
 
-    start = time.time()
+    # start = time.time()
     z, p, u_prof, v_prof, w_prof, T_prof, q_prof, u_surface, v_surface, valid_dt, cycle_dt, was_tile_reused = gfs_cache.get_column(lat, lon, time_utc)
-    column_time = time.time() - start
+    
+    # save in a cvs file z, p, u_prof, v_prof, w_prof, T_prof, q_prof
+    # with open("gfs_data.csv", "w") as f:
+    #     f.write("z,p,u_prof,v_prof,w_prof,T_prof,q_prof\n")
+    #     for i in range(len(z)):
+    #         f.write(f"{z[i]},{p[i]},{u_prof[i]},{v_prof[i]},{w_prof[i]},{T_prof[i]},{q_prof[i]}\n")
+    
+    # column_time = time.time() - start
     # print(f"GFSDataCache.get_column took {column_time:.4f} s")
 
     z_low = 100.0

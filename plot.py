@@ -108,5 +108,5 @@ def plot_enu_trajectory(json_file='trajectory_0.json'):
 
 
 if __name__ == '__main__':
-    plot_enu_trajectory("trajectory_0.json")
-    plot_with_folium("trajectory_0.json")
+    plot_enu_trajectory("output/trajectory_0.json")
+    plot_with_folium("output/trajectory_0.json", "output/trajectory_0_map.html")

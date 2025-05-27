@@ -235,7 +235,7 @@ def get_statedot(state: np.ndarray, t: float, t0: datetime, balloon: Balloon, pa
     statedot[6:9] = v_p
     statedot[9:12] = a_p
     
-    # print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
+    print(f"Simulation time={t:.2f} s, Balloon height={h_b:.2f} m")
     # print(f"Balloon wind speed: {f_b['u']:.2f} m/s, {f_b['v']:.2f} m/s, {f_b['w']:.2f} m/s")
      
     return statedot
@@ -244,7 +244,7 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0, duration_hours=5.0):
     print(f'Start of Simulation {sim_id}')
     
     lat0_rad, lon0_rad = np.deg2rad(lat0), np.deg2rad(lon0)
-    balloon = Balloon(radius=5, envelope_mass=1.5, gas="helium", gas_mass=4.0)
+    balloon = Balloon(radius=4, envelope_mass=1.5, gas="helium", gas_mass=4.0)
     payload = Payload(radius=0.2, length=0.5, mass=3)
     tether = Tether(length=20.0)
     t0 = datetime.now(ZoneInfo("UTC"))
@@ -268,11 +268,14 @@ def run_simulation(sim_id, lat0, lon0, h0=100.0, duration_hours=5.0):
     Xb, Yb, Zb = sol.y[0], sol.y[1], sol.y[2]
     Vbx, Vby, Vbz = sol.y[3], sol.y[4], sol.y[5]
     Xp, Yp, Zp = sol.y[6], sol.y[7], sol.y[8]
+    Vpx, Vpy, Vpz = sol.y[9], sol.y[10], sol.y[11]
     
     traj_log = {
         "t": sol.t.tolist(),
-        "balloon_ecef": {"X": Xb.tolist(), "Y": Yb.tolist(), "Z": Zb.tolist()},
-        "payload_ecef": {"X": Xp.tolist(), "Y": Yp.tolist(), "Z": Zp.tolist()},
+        "balloon_ecef_pos": {"X": Xb.tolist(), "Y": Yb.tolist(), "Z": Zb.tolist()},
+        "balloon_ecef_vel": {"Vx": Vbx.tolist(), "Vy": Vby.tolist(), "Vz": Vbz.tolist()},
+        "payload_ecef_pos": {"X": Xp.tolist(), "Y": Yp.tolist(), "Z": Zp.tolist()},
+        "payload_ecef_vel": {"Vx": Vpx.tolist(), "Vy": Vpy.tolist(), "Vz": Vpz.tolist()},
         "origin": {"lat0": float(lat0), "lon0": float(lon0), "h0": float(h0)},
         "tether_length": tether.length
     }

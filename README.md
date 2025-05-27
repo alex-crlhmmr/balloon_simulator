@@ -156,7 +156,10 @@ The simulation automatically fetches GFS forecasts in `weather.py` using `GFSDat
 - Optimize dataset fetching
 - Add command-line argument support for dynamic parameters.
 - Incorporate additional GFS variables (e.g., 2 m temperature).
-- Use spline interpolation for smoother wind profiles.
+- Use altitude cubic spline interpolation for smoother wind profiles, also try log-pressure cublic spline.
+- Use LRU cache policy (useful when switching to station keeping mode)
+- Explore caching key vaue trade-offs (notable ForecastCache)
+- Correct 6h time update to fectch GFS server data
 
 
 ## Contact
